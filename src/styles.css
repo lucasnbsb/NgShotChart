@@ -1,119 +1,29 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;/* You can add global styles to this file, and also import other style files */
-
-
 /* shotchart */
-
-html,
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen,
-    Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue, sans-serif;
-}
-
-#shotzone {
-  fill-opacity: 0.7;
-}
-
-.shot-chart-court * {
+.ng-shot-chart-court * {
   fill: transparent;
   stroke: #333333;
-  stroke-width: 0.05;
-  stroke-opacity: 0.5;
+  stroke-width: 0.15;
+  stroke-opacity: 1;
 }
 
-.shot-chart-court {
+.ng-shot-chart-court {
   border: none;
   outline: none;
 }
-.shot-chart-court-ft-circle-bottom {
-  stroke-dasharray: 1.5, 1;
+
+/* make sure that points don't overlap the hoop */
+.ng-shot-chart-court-hoop,
+.ng-shot-chart-court-backboard {
+  z-index: 1000;
 }
 
-.shot-chart-court-hoop,
-.shot-chart-court-backboard {
-  z-index: 100;
+
+.ng-shot-chart-court-baseline,
+.ng-shot-chart-court-3pt-line,
+.ng-shot-chart-court-restricted-area,
+.ng-shot-chart-court-ft-circle-top,
+.ng-shot-chart-court-ft-circle-bottom,
+.ng-shot-chart-court-key-block,
+.ng-shot-chart-court-key-mark{
+  z-index: 0;
 }
-
-.shotzone {
-  stroke: black;
-  stroke-width: 0.08;
-  stroke-opacity: 0.9;
-  z-index: 10000;
-}
-
-#shotchart-container {
-  border-radius: 0.3rem;
-  background-color: white;
-  border: 2px solid;
-  border-color: black;
-}
-
-text {
-  font-size: 0.07rem;
-  stroke: black !important;
-  fill: black !important;
-}
-
-.shotchart-container svg {
-  width: 100%;
-  display: block;
-}
-
-.right-corner-three-zone-text,
-.left-corner-three-zone-text {
-  font-size: 0.04rem;
-  stroke: black !important;
-}
-
-#light-shotchart-zone {
-  fill: white !important;
-  stroke: white !important;
-}
-
-#dark-empty-shot-zone {
-  fill: white !important;
-  stroke: white !important;
-}
-
-@media screen and (min-aspect-ratio: 11/8) {
-  text {
-    font-size: 0.07rem;
-  }
-
-  .shotchart-container svg {
-    width: 100%;
-    margin: 0;
-  }
-}
-
-@media screen and (min-width: 1800px) {
-  text {
-    font-size: 0.06rem;
-  }
-}
-
-@media screen and (min-width: 2300px) {
-  text {
-    font-size: 0.15rem;
-  }
-}
-
-@media screen and (max-width: 800px) {
-  text {
-    font-size: 0.08rem;
-  }
-
-  .right-corner-three-zone-text,
-  .left-corner-three-zone-text {
-    font-size: 0.05rem;
-  }
-}
-
-@media print {
-  text {
-    font-size: 0.09rem;
-  }
-}
-
