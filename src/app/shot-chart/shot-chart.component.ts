@@ -1,38 +1,45 @@
-import { AfterViewInit, Component } from '@angular/core';
+import { AfterViewInit, Component, EventEmitter, Output, ViewEncapsulation } from '@angular/core';
 import * as d3 from 'd3';
 
 import { NBA_SETTINGS, SHOTCHART_SETTINGS } from '../shared/constants/shot-chart.constants';
-import { drawCourt, drawShot, drawSymbol } from '../shared/functions/draw';
 import { IShotchartSettings } from '../shared/models/shot-chart';
+import { ShotChartService } from '../shared/services/shot-chart.service';
 
 @Component({
-  selector: 'ng-shot-chart',
+  selector: 'ngx-shot-chart',
   standalone: true,
   imports: [],
   templateUrl: './shot-chart.component.html',
   styleUrl: './shot-chart.component.css',
+  encapsulation: ViewEncapsulation.None,
 })
 export class ShotChartComponent implements AfterViewInit {
+  @Output() ChartClicked: EventEmitter<MouseEvent> = new EventEmitter<MouseEvent>();
   svgId = 'shotchart';
   chartSettings?: IShotchartSettings;
   points: { x: number; y: number }[] = [] as { x: number; y: number }[];
-  constructor() {}
+
+  symbolClicked$ = this.chart.getSymbolClicked();
+
+  constructor(private chart: ShotChartService) {}
 
   ngAfterViewInit(): void {
+    this.symbolClicked$.subscribe((event) => {
+      console.log(event);
+    });
+
     this.chartSettings = SHOTCHART_SETTINGS(NBA_SETTINGS, 1);
 
-    drawCourt(this.chartSettings, 'svg');
-    drawShot(17, 11, 0.2, 'red', 'black', 0.1, 'svg');
-    drawSymbol(d3.symbolCross, 17, 11, 5, 'red', 'black', 0.1);
+    this.chart.drawCourt(this.chartSettings);
   }
 
   redraw() {
     if (this.chartSettings) {
-      drawCourt(this.chartSettings, 'svg');
+      this.chart.drawCourt(this.chartSettings);
     }
 
     this.points.forEach((point) => {
-      drawShot(point.x, point.y, 0.2, 'red', 'black', 0.1, 'svg');
+      this.chart.drawSymbol(d3.symbolCircle, point.x, point.y, 0.2, 'black', 0.1);
     });
   }
 
