@@ -1,35 +1,39 @@
-import { Injectable } from '@angular/core';
+import { Inject, Injectable } from '@angular/core';
 import * as d3 from 'd3';
 import { Subject } from 'rxjs';
-import { ICourtLines, ICourtLocation, IDrawCourt, ILeagueSettings, IShotchartSettings } from '../models/shot-chart';
+import { IActiveSymbol, ICourtLines, ICourtLocation, IDrawCourt, ILeagueSettings } from '../models/shot-chart';
 import { NgxShotchartSettings } from './../constants/shot-chart.constants';
+import { IShotchartSettings } from './../models/shot-chart';
 
 export interface SymbolClickEvent {
   event: MouseEvent;
   symbol: SVGPathElement;
 }
 
-export interface SymbolCreationData {
+export interface shotInfo {
+  x: number;
+  y: number;
   distanceFeet: number;
   distanceMeters: number;
   angleDegrees: number;
   isThreePointer: boolean;
 }
 
-@Injectable({
-  providedIn: 'root',
-})
+@Injectable()
 export class ShotChartService {
   /** Observable for all click events in symbols added to the chart*/
   private symbolClicked$: Subject<SymbolClickEvent> = new Subject();
+  public activeSymbols: Map<string, IActiveSymbol> = new Map();
 
   readonly chartSelector = '#ngx-shotchart-svg';
   readonly threePointLineClass = 'ngx-shot-chart-court-3pt-line';
 
+  // private activeSymbols:
+
   /**  The calculation for the shot being a 3 pointer needs data from the settings*/
   lastRenderedSettings: IShotchartSettings = NgxShotchartSettings.Nba;
 
-  constructor() {}
+  constructor(@Inject('NGX_SHOT_CHART_SETTINGS') private chartSettings: IShotchartSettings) {}
 
   /** Observable for all click events in symbols added to the chart*/
   getSymbolClicked() {
@@ -97,13 +101,14 @@ export class ShotChartService {
    * @returns The uuid generated for the symbol
    */
   drawSymbol(
+    id: string,
     symbolType: d3.SymbolType,
     x: number,
     y: number,
     size: number,
     stroke: string,
     strokeWidth: number,
-  ): SymbolCreationData {
+  ): string {
     const subject = this.symbolClicked$;
     function onClickHandler(this: SVGPathElement, event: MouseEvent) {
       subject.next({ event: event, symbol: this });
@@ -111,7 +116,6 @@ export class ShotChartService {
     }
 
     const symbol = d3.symbol().type(symbolType).size(size);
-    const id = crypto.randomUUID();
     const newSymbol = d3
       .select(this.chartSelector)
       .append('path')
@@ -124,17 +128,23 @@ export class ShotChartService {
       .attr('transform', 'translate(' + x + ',' + y + ')');
 
     newSymbol.on('click', onClickHandler);
+    return id;
+  }
+
+  calculateShotFeatures(x: number, y: number): shotInfo {
     const hoopCenter = d3.select('#ngx-shot-chart-court-hoop-center');
     const hoopCenterX = parseFloat(hoopCenter.attr('cx'));
     const hoopCenterY = parseFloat(hoopCenter.attr('cy'));
     const distance = this.euclidianDistance(x, y, hoopCenterX, hoopCenterY);
     const angleDegrees = this.angleBetweenPoints(hoopCenterX, hoopCenterY, x, y);
 
-    const result = {
+    const result: shotInfo = {
       distanceFeet: distance,
       distanceMeters: distance * 0.3048,
       angleDegrees: angleDegrees,
       isThreePointer: this.isThreePointer(distance, angleDegrees, this.lastRenderedSettings.leagueSettings),
+      x: x,
+      y: y,
     };
     return result;
   }
@@ -179,7 +189,13 @@ export class ShotChartService {
   }
 
   /** Draws the court with the specified settings, use alongside NgxShotchartSettings for pre-configured leagues*/
-  drawCourt(settings: IShotchartSettings): IDrawCourt {
+  drawCourt(): IDrawCourt {
+    if (!this.chartSettings) {
+      throw new Error(
+        'No chart settings found injected. Please provide a chart settings object thorugh the NGX_SHOT_CHART_SETTINGS token',
+      );
+    }
+    const settings = this.chartSettings;
     this.lastRenderedSettings = settings;
     const courtLines = {
       threePointLineXY: [],
@@ -374,5 +390,74 @@ export class ShotChartService {
       .attr('r', 0);
 
     return { baseElement: baseElement, courtLines };
+  }
+
+  redrawChart() {
+    if (this.chartSettings) {
+      this.drawCourt();
+    } else {
+      throw new Error(
+        'No chart settings found injected. Please provide a chart settings object thorugh the NGX_SHOT_CHART_SETTINGS token',
+      );
+    }
+
+    if (this.activeSymbols.size) {
+      this.activeSymbols.forEach((symbol) => {
+        this.drawSymbol(symbol.uuid, symbol.symbol, symbol.x, symbol.y, 0.2, 'black', 0.1);
+      });
+    }
+  }
+
+  /**
+   * Adds a shot to the shot chart.
+   *
+   * @param {MouseEvent | ICourtLocation} coordinates - The coordinates of the shot. It can be either a MouseEvent or an object with `x` and `y` properties.
+   * @param {d3.SymbolType} symbol - The symbol type for the shot.
+   * @param {string} [id] - The id of the shot. If not provided, a random uuid will be generated.
+   * @returns {string} - The id of the added shot.
+   */
+  AddShot(coordinates: MouseEvent | ICourtLocation, symbol: d3.SymbolType, id?: string): string {
+    if (!id) {
+      id = crypto.randomUUID();
+    }
+    const coords = coordinates instanceof MouseEvent ? d3.pointer(coordinates) : [coordinates.x, coordinates.y];
+    this.activeSymbols.set(id, { uuid: id, x: coords[0], y: coords[1], symbol: symbol });
+    this.redrawChart();
+    return id;
+  }
+
+  bulkAddShots(shots: IActiveSymbol[]): void {
+    shots.forEach((shot) => {
+      this.activeSymbols.set(shot.uuid, shot);
+    });
+    this.redrawChart();
+  }
+
+  /** Removes a shot from the chart by IDrawCourt
+   * @param {string} uuid - The id of the shot to remove.
+   */
+  removeShot(uuid: string): void {
+    this.activeSymbols.delete(uuid);
+    this.redrawChart();
+  }
+
+  /**
+   * Updates the position and symbol of a shot on the shot chart.
+   *
+   * @param {string} uuid - The id of the shot to update.
+   * @param {ICourtLocation} coordinates - The new coordinates of the shot.
+   * @param {d3.SymbolType} symbol - The new symbol type for the shot.
+   */
+  updateShot(uuid: string, coordinates: ICourtLocation, symbol: d3.SymbolType): void {
+    this.activeSymbols.set(uuid, { uuid: uuid, x: coordinates.x, y: coordinates.y, symbol: symbol });
+    this.redrawChart();
+  }
+
+  /**
+   * Clears all shots from the shot chart.
+   */
+  clearChart(): void {
+    this.activeSymbols.clear();
+    this.redrawChart();
   }
 }

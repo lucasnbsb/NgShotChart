@@ -1,49 +1,41 @@
 import { AfterViewInit, Component, EventEmitter, Output, ViewEncapsulation } from '@angular/core';
 import * as d3 from 'd3';
+import { IActiveSymbol } from './../shared/models/shot-chart';
 
 import { NgxShotchartSettings } from '../shared/constants/shot-chart.constants';
-import { IShotchartSettings } from '../shared/models/shot-chart';
+import { ChartClickedEvent, IShotchartSettings } from '../shared/models/shot-chart';
 import { ShotChartService } from '../shared/services/shot-chart.service';
 
 @Component({
   selector: 'ngx-shot-chart',
   standalone: true,
   imports: [],
+  providers: [ShotChartService, { provide: 'NGX_SHOT_CHART_SETTINGS', useValue: NgxShotchartSettings.Nba }],
   templateUrl: './shot-chart.component.html',
   styleUrl: './shot-chart.component.css',
   encapsulation: ViewEncapsulation.None,
 })
 export class ShotChartComponent implements AfterViewInit {
-  @Output() ChartClicked: EventEmitter<MouseEvent> = new EventEmitter<MouseEvent>();
+  @Output() ChartClicked: EventEmitter<ChartClickedEvent> = new EventEmitter<ChartClickedEvent>();
   chartSettings?: IShotchartSettings;
-  points: { x: number; y: number }[] = [] as { x: number; y: number }[];
+  activeSymbols: Map<string, IActiveSymbol> = new Map();
 
   symbolClicked$ = this.chart.getSymbolClicked();
 
   constructor(private chart: ShotChartService) {}
 
   ngAfterViewInit(): void {
-    this.symbolClicked$.subscribe((event) => {});
-
-    this.chartSettings = NgxShotchartSettings.Fiba;
-
-    this.chart.drawCourt(this.chartSettings);
+    this.chart.drawCourt();
   }
 
-  redraw() {
-    if (this.chartSettings) {
-      this.chart.drawCourt(this.chartSettings);
-    }
-
-    this.points.forEach((point) => {
-      this.chart.drawSymbol(d3.symbolCircle, point.x, point.y, 0.2, 'black', 0.1);
-    });
-  }
-
-  //d3.pointer converts the click event into coordinates.
-  logEvent(event: any): void {
+  /**
+   * Handles the click event on the shot chart.
+   *
+   * @param {MouseEvent} event - The click event.
+   */
+  handleChartClicked(event: MouseEvent): void {
     const coords = d3.pointer(event);
-    this.points.push({ x: coords[0], y: coords[1] });
-    this.redraw();
+    const shotInfo = this.chart.calculateShotFeatures(coords[0], coords[1]);
+    this.ChartClicked.emit({ event: event, shotInfo: shotInfo });
   }
 }

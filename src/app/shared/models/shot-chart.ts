@@ -1,6 +1,12 @@
+import { shotInfo } from './../services/shot-chart.service';
 export interface ICourtLocation {
   x: number;
   y: number;
+}
+
+export interface IActiveSymbol extends ICourtLocation {
+  uuid: string;
+  symbol: d3.SymbolType;
 }
 
 export interface ILeagueSettings {
@@ -43,4 +49,9 @@ export interface IDrawCourt {
 
 export interface ICourtLines {
   [index: string]: ICourtLocation[];
+}
+
+export interface ChartClickedEvent {
+  event: MouseEvent;
+  shotInfo: shotInfo;
 }

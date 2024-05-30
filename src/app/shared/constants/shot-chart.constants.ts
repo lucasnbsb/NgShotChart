@@ -1,7 +1,7 @@
 import { ILeagueSettings, IShotchartSettings } from "../models/shot-chart";
 
 
-export function SHOTCHART_SETTINGS(_leagueSettings: ILeagueSettings): IShotchartSettings {
+function SHOTCHART_SETTINGS(_leagueSettings: ILeagueSettings): IShotchartSettings {
   return {
     basketDiameter: 1.5,
     basketProtrusionLength: 4,
@@ -46,7 +46,7 @@ const FIBA_AngleHoopThree = 12.101492031823499;
 const COLL_AngleHoopThree = 12.02699541075422;
 const NBA_AngeHoopThree = 22.059310299049454;
 
-export const FIBA_SETTINGS: ILeagueSettings = {
+const FIBA_SETTINGS: ILeagueSettings = {
   leagueId: 'FIBA',
   keyWidth: 16.08,
   courtWidth: 49.21,
@@ -65,7 +65,7 @@ export const FIBA_SETTINGS: ILeagueSettings = {
   threePointArcAngles: [FIBA_AngleHoopThree, 180 - FIBA_AngleHoopThree],
 };
 
-export const COLL_SETTINGS: ILeagueSettings = {
+const COLL_SETTINGS: ILeagueSettings = {
   leagueId: 'COLL',
   keyWidth: 12,
   courtWidth: 50,
@@ -84,7 +84,7 @@ export const COLL_SETTINGS: ILeagueSettings = {
   threePointArcAngles: [COLL_AngleHoopThree, 180 - COLL_AngleHoopThree],
 };
 
-export const NBA_SETTINGS: ILeagueSettings = {
+const NBA_SETTINGS: ILeagueSettings = {
   leagueId: 'NBA',
   keyWidth: 16,
   courtWidth: 50,
