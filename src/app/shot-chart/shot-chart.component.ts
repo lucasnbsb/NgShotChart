@@ -1,7 +1,7 @@
 import { AfterViewInit, Component, EventEmitter, Output, ViewEncapsulation } from '@angular/core';
 import * as d3 from 'd3';
 
-import { NBA_SETTINGS, SHOTCHART_SETTINGS } from '../shared/constants/shot-chart.constants';
+import { NgxShotchartSettings } from '../shared/constants/shot-chart.constants';
 import { IShotchartSettings } from '../shared/models/shot-chart';
 import { ShotChartService } from '../shared/services/shot-chart.service';
 
@@ -15,7 +15,6 @@ import { ShotChartService } from '../shared/services/shot-chart.service';
 })
 export class ShotChartComponent implements AfterViewInit {
   @Output() ChartClicked: EventEmitter<MouseEvent> = new EventEmitter<MouseEvent>();
-  svgId = 'shotchart';
   chartSettings?: IShotchartSettings;
   points: { x: number; y: number }[] = [] as { x: number; y: number }[];
 
@@ -24,11 +23,9 @@ export class ShotChartComponent implements AfterViewInit {
   constructor(private chart: ShotChartService) {}
 
   ngAfterViewInit(): void {
-    this.symbolClicked$.subscribe((event) => {
-      console.log(event);
-    });
+    this.symbolClicked$.subscribe((event) => {});
 
-    this.chartSettings = SHOTCHART_SETTINGS(NBA_SETTINGS, 1);
+    this.chartSettings = NgxShotchartSettings.Fiba;
 
     this.chart.drawCourt(this.chartSettings);
   }

@@ -1,23 +1,18 @@
 import { ILeagueSettings, IShotchartSettings } from "../models/shot-chart";
 
-export function SHOTCHART_SETTINGS(
-  _leagueSettings: ILeagueSettings,
-  _shotchartNumber: number
-): IShotchartSettings {
+
+export function SHOTCHART_SETTINGS(_leagueSettings: ILeagueSettings): IShotchartSettings {
   return {
     basketDiameter: 1.5,
     basketProtrusionLength: 4,
     basketWidth: 6,
     courtLength: 94,
-    courtWidth: 50,
     freeThrowLineLength: 19,
     freeThrowCircleRadius: 6,
     keyMarkWidth: 0.66,
     restrictedCircleRadius: 4,
     leagueSettings: _leagueSettings,
-    width: "100%",
-    floaterRange: 14.18,
-    rimRange: 5,
+    width: '100%',
     leftBaselineMidrangeInside: {
       x: (145.99621 + 250) / 10,
       y: 81.94051 / 10,
@@ -42,25 +37,23 @@ export function SHOTCHART_SETTINGS(
       x: (-25.4622 + 250) / 10,
       y: 90.53112 / 10,
     },
-    visibleCourtLength: (): number => {
-      const halfCourtLength = 94 / 2;
-      // length of three point line away from basket
-      const threePointLength = _leagueSettings.threePointRadius + 4;
-      // visible court does not include the entire halfcourt (Heaves not included)
-      // can adjust this depending on whether or not we want deep threes included
-      return threePointLength + (halfCourtLength - threePointLength) / 2;
-    },
-    shotchartNumber: _shotchartNumber,
+    visibleCourtLength: _leagueSettings.threePointRadius + 10,
   };
 }
 
+// angle from the center of the hoop to the corner of the three point line, where the radius collapses into the corner
+const FIBA_AngleHoopThree = 12.101492031823499;
+const COLL_AngleHoopThree = 12.02699541075422;
+const NBA_AngeHoopThree = 22.059310299049454;
+
 export const FIBA_SETTINGS: ILeagueSettings = {
-  leagueId: "FIBA",
+  leagueId: 'FIBA',
   keyWidth: 16.08,
+  courtWidth: 49.21,
   keyMarks: [5.74147, 9.350394, 12.7953, 15.58399],
-  threePointCutOffLength: 9.865,
-  threePointRadius: 22.15,
-  threePointSideRadius: 21.65,
+  threePointCutOffLength: 9.47,
+  threePointRadius: 22.14567,
+  threePointSideDistance: 21.653544,
   leftThreeInside: {
     x: (-112.77716 + 250) / 10,
     y: 238.0934 / 10,
@@ -69,16 +62,17 @@ export const FIBA_SETTINGS: ILeagueSettings = {
     x: (-112.77716 + 250) / 10,
     y: 238.0934 / 10,
   },
+  threePointArcAngles: [FIBA_AngleHoopThree, 180 - FIBA_AngleHoopThree],
 };
 
-
 export const COLL_SETTINGS: ILeagueSettings = {
-  leagueId: "COLL",
+  leagueId: 'COLL',
   keyWidth: 12,
+  courtWidth: 50,
   keyMarks: [11, 14, 17],
   threePointCutOffLength: 9.865,
   threePointRadius: 22.146,
-  threePointSideRadius: 21.55,
+  threePointSideDistance: 21.55,
   leftThreeInside: {
     x: (-112.77716 + 250) / 10,
     y: 238.0934 / 10,
@@ -87,15 +81,17 @@ export const COLL_SETTINGS: ILeagueSettings = {
     x: (-112.77716 + 250) / 10,
     y: 238.0934 / 10,
   },
+  threePointArcAngles: [COLL_AngleHoopThree, 180 - COLL_AngleHoopThree],
 };
 
 export const NBA_SETTINGS: ILeagueSettings = {
-  leagueId: "NBA",
+  leagueId: 'NBA',
   keyWidth: 16,
+  courtWidth: 50,
   keyMarks: [7, 8, 11, 14],
   threePointCutOffLength: 13.9,
   threePointRadius: 23.75,
-  threePointSideRadius: 21.91,
+  threePointSideDistance: 21.91,
   leftThreeInside: {
     x: (-120.94543 + 250) / 10,
     y: 251.89778 / 10,
@@ -104,4 +100,12 @@ export const NBA_SETTINGS: ILeagueSettings = {
     x: (-120.94543 + 250) / 10,
     y: 251.89778 / 10,
   },
+  threePointArcAngles: [NBA_AngeHoopThree, 180 - NBA_AngeHoopThree],
+};
+
+/** Options to initialize the chart */
+export const NgxShotchartSettings = {
+  Fiba: SHOTCHART_SETTINGS(FIBA_SETTINGS),
+  Coll: SHOTCHART_SETTINGS(COLL_SETTINGS),
+  Nba: SHOTCHART_SETTINGS(NBA_SETTINGS),
 };
