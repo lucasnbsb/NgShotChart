@@ -1,4 +1,3 @@
-import { shotInfo } from './../services/shot-chart.service';
 export interface ICourtLocation {
   x: number;
   y: number;
@@ -51,7 +50,22 @@ export interface ICourtLines {
   [index: string]: ICourtLocation[];
 }
 
+export interface SymbolClickEvent {
+  event: MouseEvent;
+  symbol: SVGPathElement;
+  id: string;
+}
+
 export interface ChartClickedEvent {
   event: MouseEvent;
-  shotInfo: shotInfo;
+  shotInfo: ShotInfo;
+}
+
+export interface ShotInfo {
+  x: number;
+  y: number;
+  distanceFeet: number;
+  distanceMeters: number;
+  angleDegrees: number;
+  isThreePointer: boolean;
 }

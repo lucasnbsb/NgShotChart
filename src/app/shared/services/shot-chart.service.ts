@@ -1,23 +1,17 @@
 import { Inject, Injectable } from '@angular/core';
 import * as d3 from 'd3';
 import { Subject } from 'rxjs';
-import { IActiveSymbol, ICourtLines, ICourtLocation, IDrawCourt, ILeagueSettings } from '../models/shot-chart';
+import {
+  IActiveSymbol,
+  ICourtLines,
+  ICourtLocation,
+  IDrawCourt,
+  ILeagueSettings,
+  ShotInfo,
+  SymbolClickEvent,
+} from '../models/shot-chart';
 import { NgxShotchartSettings } from './../constants/shot-chart.constants';
 import { IShotchartSettings } from './../models/shot-chart';
-
-export interface SymbolClickEvent {
-  event: MouseEvent;
-  symbol: SVGPathElement;
-}
-
-export interface shotInfo {
-  x: number;
-  y: number;
-  distanceFeet: number;
-  distanceMeters: number;
-  angleDegrees: number;
-  isThreePointer: boolean;
-}
 
 @Injectable()
 export class ShotChartService {
@@ -36,57 +30,8 @@ export class ShotChartService {
   constructor(@Inject('NGX_SHOT_CHART_SETTINGS') private chartSettings: IShotchartSettings) {}
 
   /** Observable for all click events in symbols added to the chart*/
-  getSymbolClicked() {
+  getSymbolClickedObservable() {
     return this.symbolClicked$.asObservable();
-  }
-
-  /**
-   * Appends an arc path to the base element.
-   *
-   * @param {any} baseElement - The element receiving the chart.
-   * @param {number} radius - The radius of the arc.
-   * @param {number} startAngle - The starting angle of the arc in radians.
-   * @param {number} endAngle - The ending angle of the arc in radians.
-   * @param {number} [translateX] - The translation along the x-axis.
-   * @param {number} [translateY] - The translation along the y-axis.
-   * @param {string} [xyState] - The state of the XY coordinates.
-   * @param {ICourtLines} [courtLines] - The court lines object.
-   * @returns {any} The appended path element.
-   */
-  private appendArcPath(
-    baseElement: any,
-    radius: number,
-    startAngle: number,
-    endAngle: number,
-    translateX?: number,
-    translateY?: number,
-    xyState?: string,
-    courtLines?: ICourtLines,
-  ): any {
-    // amount of line segments for the arc
-    const points = 1500;
-
-    const a = d3
-      .scaleLinear()
-      .domain([0, points - 1])
-      .range([startAngle, endAngle]);
-
-    const temp: ICourtLocation[] = [];
-    const line = d3
-      .lineRadial()
-      .radius(radius)
-      .angle(function (d: [number, number], i: number) {
-        temp.push({
-          x: (translateX === undefined ? 0 : translateX) + radius * Math.cos(a(i) - Math.PI / 2),
-          y: (translateY === undefined ? 0 : translateY) + radius * Math.sin(a(i) - Math.PI / 2),
-        });
-        return a(i);
-      });
-
-    if (xyState !== undefined && courtLines !== undefined) {
-      courtLines[xyState] = temp;
-    }
-    return baseElement.append('path').datum(d3.range(points)).attr('d', line);
   }
 
   /**
@@ -98,6 +43,7 @@ export class ShotChartService {
    * @param size The size of the symbol.
    * @param stroke The color of the symbol's stroke.
    * @param strokeWidth The width of the symbol's stroke.
+   * @param fill css color for the fill of the symbol
    * @returns The uuid generated for the symbol
    */
   drawSymbol(
@@ -108,20 +54,25 @@ export class ShotChartService {
     size: number,
     stroke: string,
     strokeWidth: number,
+    fill?: string,
   ): string {
     const subject = this.symbolClicked$;
     function onClickHandler(this: SVGPathElement, event: MouseEvent) {
-      subject.next({ event: event, symbol: this });
+      subject.next({ event: event, symbol: this, id: this.id });
       event.stopImmediatePropagation();
     }
 
+    if (!fill) {
+      fill = 'currentColor';
+    }
     const symbol = d3.symbol().type(symbolType).size(size);
     const newSymbol = d3
       .select(this.chartSelector)
       .append('path')
       .attr('d', symbol)
       .attr('id', id)
-      .style('fill', 'currentColor')
+      .attr('class', 'ngx-shot-chart-symbol')
+      .style('fill', fill)
       .style('stroke', stroke)
       .style('stroke-width', strokeWidth)
       .style('z-index', 1000)
@@ -131,14 +82,21 @@ export class ShotChartService {
     return id;
   }
 
-  calculateShotFeatures(x: number, y: number): shotInfo {
+  /**
+   * Calculates distance, angle and if the shot is a 3 pointer, based on the center of the hoop and the last rendered settings
+   *
+   * @param x The x-coordinate of the shot.
+   * @param y The y-coordinate of the shot.
+   * @returns {ShotInfo} The shot information object containing the distance, angle, and other details.
+   */
+  calculateShotInfo(x: number, y: number): ShotInfo {
     const hoopCenter = d3.select('#ngx-shot-chart-court-hoop-center');
     const hoopCenterX = parseFloat(hoopCenter.attr('cx'));
     const hoopCenterY = parseFloat(hoopCenter.attr('cy'));
     const distance = this.euclidianDistance(x, y, hoopCenterX, hoopCenterY);
     const angleDegrees = this.angleBetweenPoints(hoopCenterX, hoopCenterY, x, y);
 
-    const result: shotInfo = {
+    const result: ShotInfo = {
       distanceFeet: distance,
       distanceMeters: distance * 0.3048,
       angleDegrees: angleDegrees,
@@ -149,43 +107,84 @@ export class ShotChartService {
     return result;
   }
 
-  /** Calculates if a shot is worth 3 points or 2*/
-  // heavy elementary school math ahead
-  isThreePointer(distance: number, angle: number, leagueSettings: ILeagueSettings) {
-    const threePointArcAngles = leagueSettings.threePointArcAngles;
-    const threePointArcDistance = leagueSettings.threePointRadius;
-    const isInTheArc = angle > threePointArcAngles[0] && angle < threePointArcAngles[1];
-
-    if (isInTheArc) {
-      return Math.abs(distance) > Math.abs(threePointArcDistance);
+  /**
+   * Redraws the shot chart and all active activeSymbols
+   * @throws {Error} If no chart settings are injected
+   */
+  redrawChart() {
+    if (this.chartSettings) {
+      this.drawCourt();
     } else {
-      // calculate the hypotenuse of the shot to the hoop
-      const cos = Math.cos(this.degreesToRadians(angle));
-      const hipotenuse = leagueSettings.threePointSideDistance / cos;
-      return Math.abs(distance) > Math.abs(hipotenuse);
+      throw new Error(
+        'No chart settings found injected. Please provide a chart settings object thorugh the NGX_SHOT_CHART_SETTINGS token',
+      );
+    }
+
+    d3.selectAll('.ngx-shot-chart-symbol').remove();
+    if (this.activeSymbols.size) {
+      this.activeSymbols.forEach((symbol) => {
+        this.drawSymbol(symbol.uuid, symbol.symbol, symbol.x, symbol.y, 0.2, 'black', 0.1);
+      });
     }
   }
 
-  // Angle between two points assuming a line paralel to y on the first point
-  angleBetweenPoints(x1: number, y1: number, x2: number, y2: number) {
-    const dy = y1 - y2;
-    const dx = x1 - x2;
-    const radians = Math.atan2(dy, dx); // range (-PI, PI]
-    const degrees = this.radiansToDegrees(radians); // rads to degs, range (-180, 180]
-    return degrees;
+  /**
+   * Adds a shot to the shot chart.
+   *
+   * @param {MouseEvent | ICourtLocation} coordinates The coordinates of the shot. It can be either a MouseEvent or an object with `x` and `y` properties.
+   * @param {d3.SymbolType} symbol The symbol type for the shot.
+   * @param {string} [id] The id of the shot. If not provided, a random uuid will be generated.
+   * @returns {string} The id of the added shot.
+   */
+  AddShot(coordinates: MouseEvent | ICourtLocation, symbol: d3.SymbolType, id?: string): string {
+    if (!id) {
+      id = crypto.randomUUID();
+    }
+    const coords = coordinates instanceof MouseEvent ? d3.pointer(coordinates) : [coordinates.x, coordinates.y];
+    this.activeSymbols.set(id, { uuid: id, x: coords[0], y: coords[1], symbol: symbol });
+    this.redrawChart();
+    return id;
   }
 
-  // more elementary school math
-  euclidianDistance(x1: number, y1: number, x2: number, y2: number): number {
-    return Math.sqrt(Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2));
+  /**
+   * Adds multiple shots to the shot chart. Redraws the chart after adding all shots.
+   * Charts with the same Id will overwrite the previous shot
+   *
+   * @param {IActiveSymbol[]} shots The shots to add.
+   */
+  bulkAddShots(shots: IActiveSymbol[]): void {
+    shots.forEach((shot) => {
+      this.activeSymbols.set(shot.uuid, shot);
+    });
+    this.redrawChart();
   }
 
-  degreesToRadians(degrees: number): number {
-    return degrees * (Math.PI / 180);
+  /** Removes a shot from the chart by IDrawCourt
+   * @param {string} uuid - The id of the shot to remove.
+   */
+  removeShot(uuid: string): void {
+    this.activeSymbols.delete(uuid);
+    this.redrawChart();
   }
 
-  radiansToDegrees(radians: number): number {
-    return radians * (180 / Math.PI);
+  /**
+   * Updates the position and symbol of a shot on the shot chart.
+   *
+   * @param {string} uuid - The id of the shot to update.
+   * @param {ICourtLocation} coordinates - The new coordinates of the shot.
+   * @param {d3.SymbolType} symbol - The new symbol type for the shot.
+   */
+  updateShot(uuid: string, coordinates: ICourtLocation, symbol: d3.SymbolType): void {
+    this.activeSymbols.set(uuid, { uuid: uuid, x: coordinates.x, y: coordinates.y, symbol: symbol });
+    this.redrawChart();
+  }
+
+  /**
+   * Clears all shots from the shot chart.
+   */
+  clearChart(): void {
+    this.activeSymbols.clear();
+    this.redrawChart();
   }
 
   /** Draws the court with the specified settings, use alongside NgxShotchartSettings for pre-configured leagues*/
@@ -392,72 +391,91 @@ export class ShotChartService {
     return { baseElement: baseElement, courtLines };
   }
 
-  redrawChart() {
-    if (this.chartSettings) {
-      this.drawCourt();
+  /** Calculates if a shot is worth 3 points or 2*/
+  // heavy elementary school math ahead
+  private isThreePointer(distance: number, angle: number, leagueSettings: ILeagueSettings) {
+    const threePointArcAngles = leagueSettings.threePointArcAngles;
+    const threePointArcDistance = leagueSettings.threePointRadius;
+    const isInTheArc = angle > threePointArcAngles[0] && angle < threePointArcAngles[1];
+
+    if (isInTheArc) {
+      return Math.abs(distance) > Math.abs(threePointArcDistance);
     } else {
-      throw new Error(
-        'No chart settings found injected. Please provide a chart settings object thorugh the NGX_SHOT_CHART_SETTINGS token',
-      );
+      // calculate the hypotenuse of the shot to the hoop
+      const cos = Math.cos(this.degreesToRadians(angle));
+      const hipotenuse = leagueSettings.threePointSideDistance / cos;
+      return Math.abs(distance) > Math.abs(hipotenuse);
     }
+  }
 
-    if (this.activeSymbols.size) {
-      this.activeSymbols.forEach((symbol) => {
-        this.drawSymbol(symbol.uuid, symbol.symbol, symbol.x, symbol.y, 0.2, 'black', 0.1);
+  // Angle between two points assuming a line paralel to y on the first point
+  private angleBetweenPoints(x1: number, y1: number, x2: number, y2: number) {
+    const dy = y1 - y2;
+    const dx = x1 - x2;
+    const radians = Math.atan2(dy, dx); // range (-PI, PI]
+    const degrees = this.radiansToDegrees(radians); // rads to degs, range (-180, 180]
+    return degrees;
+  }
+
+  // more elementary school math
+  private euclidianDistance(x1: number, y1: number, x2: number, y2: number): number {
+    return Math.sqrt(Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2));
+  }
+
+  private degreesToRadians(degrees: number): number {
+    return degrees * (Math.PI / 180);
+  }
+
+  private radiansToDegrees(radians: number): number {
+    return radians * (180 / Math.PI);
+  }
+
+  /**
+   * Appends an arc path to the base element.
+   *
+   * @param {any} baseElement - The element receiving the chart.
+   * @param {number} radius - The radius of the arc.
+   * @param {number} startAngle - The starting angle of the arc in radians.
+   * @param {number} endAngle - The ending angle of the arc in radians.
+   * @param {number} [translateX] - The translation along the x-axis.
+   * @param {number} [translateY] - The translation along the y-axis.
+   * @param {string} [xyState] - The state of the XY coordinates.
+   * @param {ICourtLines} [courtLines] - The court lines object.
+   * @returns {any} The appended path element.
+   */
+  private appendArcPath(
+    baseElement: any,
+    radius: number,
+    startAngle: number,
+    endAngle: number,
+    translateX?: number,
+    translateY?: number,
+    xyState?: string,
+    courtLines?: ICourtLines,
+  ): any {
+    // amount of line segments for the arc
+    const points = 1500;
+
+    const a = d3
+      .scaleLinear()
+      .domain([0, points - 1])
+      .range([startAngle, endAngle]);
+
+    const temp: ICourtLocation[] = [];
+    const line = d3
+      .lineRadial()
+      .radius(radius)
+      .angle(function (d: [number, number], i: number) {
+        temp.push({
+          x: (translateX === undefined ? 0 : translateX) + radius * Math.cos(a(i) - Math.PI / 2),
+          y: (translateY === undefined ? 0 : translateY) + radius * Math.sin(a(i) - Math.PI / 2),
+        });
+        return a(i);
       });
+
+    if (xyState !== undefined && courtLines !== undefined) {
+      courtLines[xyState] = temp;
     }
-  }
-
-  /**
-   * Adds a shot to the shot chart.
-   *
-   * @param {MouseEvent | ICourtLocation} coordinates - The coordinates of the shot. It can be either a MouseEvent or an object with `x` and `y` properties.
-   * @param {d3.SymbolType} symbol - The symbol type for the shot.
-   * @param {string} [id] - The id of the shot. If not provided, a random uuid will be generated.
-   * @returns {string} - The id of the added shot.
-   */
-  AddShot(coordinates: MouseEvent | ICourtLocation, symbol: d3.SymbolType, id?: string): string {
-    if (!id) {
-      id = crypto.randomUUID();
-    }
-    const coords = coordinates instanceof MouseEvent ? d3.pointer(coordinates) : [coordinates.x, coordinates.y];
-    this.activeSymbols.set(id, { uuid: id, x: coords[0], y: coords[1], symbol: symbol });
-    this.redrawChart();
-    return id;
-  }
-
-  bulkAddShots(shots: IActiveSymbol[]): void {
-    shots.forEach((shot) => {
-      this.activeSymbols.set(shot.uuid, shot);
-    });
-    this.redrawChart();
-  }
-
-  /** Removes a shot from the chart by IDrawCourt
-   * @param {string} uuid - The id of the shot to remove.
-   */
-  removeShot(uuid: string): void {
-    this.activeSymbols.delete(uuid);
-    this.redrawChart();
-  }
-
-  /**
-   * Updates the position and symbol of a shot on the shot chart.
-   *
-   * @param {string} uuid - The id of the shot to update.
-   * @param {ICourtLocation} coordinates - The new coordinates of the shot.
-   * @param {d3.SymbolType} symbol - The new symbol type for the shot.
-   */
-  updateShot(uuid: string, coordinates: ICourtLocation, symbol: d3.SymbolType): void {
-    this.activeSymbols.set(uuid, { uuid: uuid, x: coordinates.x, y: coordinates.y, symbol: symbol });
-    this.redrawChart();
-  }
-
-  /**
-   * Clears all shots from the shot chart.
-   */
-  clearChart(): void {
-    this.activeSymbols.clear();
-    this.redrawChart();
+    return baseElement.append('path').datum(d3.range(points)).attr('d', line);
   }
 }
